@@ -58,6 +58,16 @@ app.add_middleware(
 )
 
 
+@app.get("/", tags=["Health"])
+async def root():
+    return {
+        "status": "online",
+        "service": "AyeApps Unified Identity API",
+        "version": "1.0.0",
+        "health": "/health",
+    }
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {
