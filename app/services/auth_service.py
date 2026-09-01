@@ -520,11 +520,13 @@ class AuthService:
             update_set["timezone"] = data.timezone
 
         if data.new_password:
-            if not user.get("hashed_password") or not data.current_password or not verify_password(data.current_password, user["hashed_password"]):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="La contraseña actual es incorrecta",
-                )
+            current_hash = user.get("hashed_password")
+            if current_hash:
+                if not data.current_password or not verify_password(data.current_password, current_hash):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="La contraseña actual es incorrecta",
+                    )
             update_set["hashed_password"] = hash_password(data.new_password)
 
         await db.aye_users.update_one({"_id": user["_id"]}, {"$set": update_set})
