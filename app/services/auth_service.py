@@ -142,6 +142,17 @@ def _generate_token_response(user_dict: dict) -> TokenResponse:
     )
 
 
+def _derive_display_name_from_email(email: str, default: str = "Usuario Apple") -> str:
+    if not email or "@" not in email:
+        return default
+    prefix = email.split("@")[0].strip()
+    if not prefix or "privaterelay.appleid" in email:
+        return default
+    clean = prefix.replace(".", " ").replace("_", " ").replace("-", " ")
+    words = [w.capitalize() for w in clean.split() if w]
+    return " ".join(words) if words else default
+
+
 class AuthService:
     @staticmethod
     async def register(data: UserRegister) -> TokenResponse:
@@ -401,11 +412,12 @@ class AuthService:
             if data.app_client:
                 apps_access[data.app_client] = True
 
+            display_name = data.name.strip() if data.name else _derive_display_name_from_email(user_email, "Usuario Apple")
             new_user = {
                 "email": user_email,
                 "primary_provider": "apple",
                 "hashed_password": None,
-                "name": data.name.strip() if data.name else "Usuario Apple",
+                "name": display_name,
                 "avatar_url": None,
                 "preferred_language": "es",
                 "preferred_theme": "dark",
