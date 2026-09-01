@@ -70,6 +70,7 @@ class AyeUser(BaseModel):
     timezone: str = "America/Mexico_City"
 
     # Identity Providers & Access
+    primary_provider: str = "local"  # 'local' | 'google' | 'apple'
     auth_providers: AuthProviders = Field(default_factory=AuthProviders)
     apps_access: AppsAccess = Field(default_factory=AppsAccess)
     subscription: Subscription = Field(default_factory=Subscription)

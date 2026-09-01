@@ -109,6 +109,7 @@ def _build_user_response(user_dict: dict) -> UserResponse:
         preferred_language=user_dict.get("preferred_language", "es"),
         preferred_theme=user_dict.get("preferred_theme", "dark"),
         timezone=user_dict.get("timezone", "America/Mexico_City"),
+        primary_provider=user_dict.get("primary_provider", "local"),
         apps_access=user_dict.get("apps_access", {}),
         subscription=user_dict.get("subscription", {}),
         created_at=user_dict.get("created_at", datetime.now(timezone.utc)),
@@ -125,6 +126,7 @@ def _generate_token_response(user_dict: dict) -> TokenResponse:
         "name": user_dict.get("name", "Usuario"),
         "avatar_url": user_dict.get("avatar_url"),
         "tier": subscription_plan,
+        "provider": user_dict.get("primary_provider", "local"),
         "apps_access": user_dict.get("apps_access", {}),
     }
 
@@ -145,11 +147,18 @@ class AuthService:
     async def register(data: UserRegister) -> TokenResponse:
         db = get_database()
         email_clean = data.email.lower().strip()
-        existing = await db.aye_users.find_one({"email": email_clean})
-        if existing:
+        existing = await db.aye_users.find_one({
+            "email": email_clean,
+            "$or": [
+                {"primary_provider": "local"},
+                {"primary_provider": {"$exists": False}},
+                {"hashed_password": {"$ne": None}}
+            ]
+        })
+        if existing and existing.get("deleted_at") is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El correo electrónico ya está registrado en el ecosistema AyeApps",
+                detail="Ya existe una cuenta con correo y contraseña para este email.",
             )
 
         now = datetime.now(timezone.utc)
@@ -159,6 +168,7 @@ class AuthService:
 
         new_user = {
             "email": email_clean,
+            "primary_provider": "local",
             "hashed_password": hash_password(data.password),
             "name": data.name.strip(),
             "avatar_url": None,
@@ -196,7 +206,14 @@ class AuthService:
     async def authenticate(data: UserLogin) -> TokenResponse:
         db = get_database()
         email_clean = data.email.lower().strip()
-        user = await db.aye_users.find_one({"email": email_clean})
+        user = await db.aye_users.find_one({
+            "email": email_clean,
+            "$or": [
+                {"primary_provider": "local"},
+                {"primary_provider": {"$exists": False}},
+                {"hashed_password": {"$ne": None}}
+            ]
+        })
 
         if not user or user.get("deleted_at") is not None:
             raise HTTPException(
@@ -289,12 +306,11 @@ class AuthService:
         db = get_database()
         now = datetime.now(timezone.utc)
 
-        user = await db.aye_users.find_one({"email": email_clean})
+        # Look up strictly by Google provider ID
+        user = await db.aye_users.find_one({"auth_providers.google_id": sub})
 
         if user:
-            # Auto-link Google ID if not present
             update_set = {
-                "auth_providers.google_id": sub,
                 "is_verified": True,
                 "login_attempts": 0,
                 "locked_until": None,
@@ -310,13 +326,14 @@ class AuthService:
             await db.aye_users.update_one({"_id": user["_id"]}, {"$set": update_set})
             user = await db.aye_users.find_one({"_id": user["_id"]})
         else:
-            # Auto-provision new Aye Account seamlessly
+            # Create separate, isolated Google account
             apps_access = AppsAccess().model_dump()
             if data.app_client:
                 apps_access[data.app_client] = True
 
             new_user = {
                 "email": email_clean,
+                "primary_provider": "google",
                 "hashed_password": None,
                 "name": name,
                 "avatar_url": picture,
@@ -357,16 +374,12 @@ class AuthService:
 
         db = get_database()
         now = datetime.now(timezone.utc)
-        user = None
 
-        if sub:
-            user = await db.aye_users.find_one({"auth_providers.apple_id": sub})
-        if not user and email_clean:
-            user = await db.aye_users.find_one({"email": email_clean})
+        # Look up strictly by Apple provider ID
+        user = await db.aye_users.find_one({"auth_providers.apple_id": sub})
 
         if user:
             update_set = {
-                "auth_providers.apple_id": sub,
                 "is_verified": True,
                 "login_attempts": 0,
                 "locked_until": None,
@@ -382,6 +395,7 @@ class AuthService:
             await db.aye_users.update_one({"_id": user["_id"]}, {"$set": update_set})
             user = await db.aye_users.find_one({"_id": user["_id"]})
         else:
+            # Create separate, isolated Apple account
             user_email = email_clean or f"{sub}@privaterelay.appleid.com"
             apps_access = AppsAccess().model_dump()
             if data.app_client:
@@ -389,6 +403,7 @@ class AuthService:
 
             new_user = {
                 "email": user_email,
+                "primary_provider": "apple",
                 "hashed_password": None,
                 "name": data.name.strip() if data.name else "Usuario Apple",
                 "avatar_url": None,

@@ -45,10 +45,15 @@ async def init_db():
         )
         db = client[settings.DATABASE_NAME]
 
-        # Ensure essential unique indexes
-        await db.aye_users.create_index("email", unique=True)
-        await db.aye_users.create_index("auth_providers.google_id", sparse=True)
-        await db.aye_users.create_index("auth_providers.apple_id", sparse=True)
+        # Ensure indexes allowing independent accounts per provider
+        try:
+            await db.aye_users.drop_index("email_1")
+        except Exception:
+            pass
+
+        await db.aye_users.create_index([("email", 1), ("primary_provider", 1)], unique=True, sparse=True)
+        await db.aye_users.create_index("auth_providers.google_id", unique=True, sparse=True)
+        await db.aye_users.create_index("auth_providers.apple_id", unique=True, sparse=True)
         await db.aye_refresh_tokens.create_index("token", unique=True)
         await db.aye_refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
 

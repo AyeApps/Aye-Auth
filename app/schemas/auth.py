@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     preferred_language: str
     preferred_theme: str
     timezone: str
+    primary_provider: Optional[str] = "local"
     apps_access: Dict[str, bool]
     subscription: Dict[str, Any]
     created_at: datetime
