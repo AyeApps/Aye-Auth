@@ -105,3 +105,13 @@ async def get_me(user_id: CurrentUserId):
 @router.put("/me", response_model=UserResponse)
 async def update_me(user_id: CurrentUserId, data: UserUpdateProfile):
     return await AuthService.update_profile(user_id, data)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    user_id: CurrentUserId,
+    authorization: Optional[str] = Header(None),
+):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    await AuthService.delete_account(user_id, token)
+    return None

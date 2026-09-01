@@ -530,3 +530,30 @@ class AuthService:
         await db.aye_users.update_one({"_id": user["_id"]}, {"$set": update_set})
         updated = await db.aye_users.find_one({"_id": user["_id"]})
         return _build_user_response(updated)
+
+    @staticmethod
+    async def delete_account(user_id: str, access_token: Optional[str] = None):
+        db = get_database()
+        user = await db.aye_users.find_one({"_id": ObjectId(user_id)})
+        if not user or user.get("deleted_at") is not None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado",
+            )
+        now = datetime.now(timezone.utc)
+        await db.aye_users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"deleted_at": now, "is_active": False}}
+        )
+        await db.aye_refresh_tokens.delete_many({"user_id": str(user["_id"])})
+        if access_token:
+            try:
+                payload = decode_token(access_token)
+                exp = datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc)
+                await db.aye_revoked_tokens.insert_one({
+                    "token": access_token,
+                    "revoked_at": now,
+                    "expires_at": exp,
+                })
+            except Exception:
+                pass
