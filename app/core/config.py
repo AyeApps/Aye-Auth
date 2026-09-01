@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     MONGODB_URL: str = "mongodb://localhost:27017/aye_identity"
     DATABASE_NAME: str = "aye_identity"
+    MONGODB_CERT_B64: str = ""
+    MONGODB_CERT_PATH: str = ""
 
     # Security & Tokens
     JWT_SECRET_KEY: str = "super_secure_secret_key_minimum_32_characters_for_ayeapps_atelier"
