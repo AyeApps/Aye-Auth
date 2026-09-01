@@ -45,17 +45,36 @@ async def init_db():
         )
         db = client[settings.DATABASE_NAME]
 
-        # Ensure indexes allowing independent accounts per provider
+        # Ensure indexes safely without crashing on existing specs conflicts
         try:
             await db.aye_users.drop_index("email_1")
         except Exception:
             pass
 
-        await db.aye_users.create_index([("email", 1), ("primary_provider", 1)], unique=True, sparse=True)
-        await db.aye_users.create_index("auth_providers.google_id", unique=True, sparse=True)
-        await db.aye_users.create_index("auth_providers.apple_id", unique=True, sparse=True)
-        await db.aye_refresh_tokens.create_index("token", unique=True)
-        await db.aye_refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+        try:
+            await db.aye_users.create_index([("email", 1), ("primary_provider", 1)], sparse=True)
+        except Exception as e:
+            logger.warning(f"Index [email, primary_provider] notice: {e}")
+
+        try:
+            await db.aye_users.create_index("auth_providers.google_id", sparse=True)
+        except Exception as e:
+            logger.warning(f"Index auth_providers.google_id notice: {e}")
+
+        try:
+            await db.aye_users.create_index("auth_providers.apple_id", sparse=True)
+        except Exception as e:
+            logger.warning(f"Index auth_providers.apple_id notice: {e}")
+
+        try:
+            await db.aye_refresh_tokens.create_index("token", unique=True)
+        except Exception as e:
+            logger.warning(f"Index token notice: {e}")
+
+        try:
+            await db.aye_refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+        except Exception as e:
+            logger.warning(f"Index expires_at notice: {e}")
 
         logger.info("MongoDB connection and indexes initialized successfully.")
     except Exception as e:
