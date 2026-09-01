@@ -398,8 +398,13 @@ class AuthService:
                 "deleted_at": None,
                 "is_active": True,
             }
-            if data.name and (user.get("name") in ["Usuario", "Usuario Apple"]):
+            if data.name and data.name.strip():
                 update_set["name"] = data.name.strip()
+            elif not user.get("name") or user.get("name") in ["Usuario", "Usuario Apple", "USER"]:
+                derived = _derive_display_name_from_email(user.get("email") or email_clean, "Usuario Apple")
+                if derived:
+                    update_set["name"] = derived
+
             if data.app_client:
                 update_set[f"apps_access.{data.app_client}"] = True
 
@@ -564,16 +569,14 @@ class AuthService:
     async def delete_account(user_id: str, access_token: Optional[str] = None):
         db = get_database()
         user = await db.aye_users.find_one({"_id": ObjectId(user_id)})
-        if not user or user.get("deleted_at") is not None:
+        if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuario no encontrado",
             )
         now = datetime.now(timezone.utc)
-        await db.aye_users.update_one(
-            {"_id": user["_id"]},
-            {"$set": {"deleted_at": now, "is_active": False}}
-        )
+        # Permanent Hard Delete
+        await db.aye_users.delete_one({"_id": user["_id"]})
         await db.aye_refresh_tokens.delete_many({"user_id": str(user["_id"])})
         if access_token:
             try:
