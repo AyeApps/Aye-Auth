@@ -20,7 +20,8 @@ class UserLogin(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str
+    id_token: Optional[str] = None
+    access_token: Optional[str] = None
     app_client: Optional[str] = "tasks"
 
 

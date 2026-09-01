@@ -252,17 +252,40 @@ class AuthService:
 
     @staticmethod
     async def authenticate_google(data: GoogleAuthRequest) -> TokenResponse:
-        idinfo = verify_google_id_token(data.id_token)
-        email_clean = idinfo.get("email", "").lower().strip()
+        if data.id_token:
+            idinfo = verify_google_id_token(data.id_token)
+            email_clean = idinfo.get("email", "").lower().strip()
+            sub = str(idinfo.get("sub"))
+            name = idinfo.get("name") or "Usuario Google"
+            picture = idinfo.get("picture")
+        elif data.access_token:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {data.access_token}"},
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token de acceso de Google inválido",
+                    )
+                userinfo = resp.json()
+                email_clean = userinfo.get("email", "").lower().strip()
+                sub = str(userinfo.get("sub"))
+                name = userinfo.get("name") or "Usuario Google"
+                picture = userinfo.get("picture")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token de Google requerido (id_token o access_token)",
+            )
+
         if not email_clean:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El token de Google no contiene un correo electrónico",
+                detail="La cuenta de Google no contiene un correo electrónico válido",
             )
 
-        sub = str(idinfo.get("sub"))
-        name = idinfo.get("name") or "Usuario Google"
-        picture = idinfo.get("picture")
         db = get_database()
         now = datetime.now(timezone.utc)
 
