@@ -51,9 +51,21 @@ async def apple_callback(
     user: Optional[str] = Form(None),
     state: Optional[str] = Form(None),
 ):
+    target_origin = "https://accounts.ayeapps.com"
+    if state:
+        try:
+            from urllib.parse import unquote
+            state_decoded = unquote(state)
+            state_data = json.loads(state_decoded)
+            if isinstance(state_data, dict) and state_data.get("origin"):
+                target_origin = state_data["origin"].rstrip("/")
+        except Exception:
+            if state.startswith("http://") or state.startswith("https://"):
+                target_origin = state.rstrip("/")
+
     if not id_token:
         return RedirectResponse(
-            url="https://accounts.ayeapps.com/?error=apple_auth_failed",
+            url=f"{target_origin}/?error=apple_auth_failed",
             status_code=303,
         )
 
@@ -72,10 +84,10 @@ async def apple_callback(
         identity_token=id_token,
         name=user_name,
         email=user_email,
-        app_client="web",
+        app_client="tasks",
     )
     tokens = await AuthService.authenticate_apple(auth_request)
-    redirect_url = f"https://accounts.ayeapps.com/#access_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
+    redirect_url = f"{target_origin}/#access_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
