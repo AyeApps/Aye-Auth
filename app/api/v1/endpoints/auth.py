@@ -44,14 +44,15 @@ async def apple_auth(request: Request, data: AppleAuthRequest):
     return await AuthService.authenticate_apple(data)
 
 
-@router.post("/oauth/apple/callback")
+@router.api_route("/oauth/apple/callback", methods=["GET", "POST"])
 async def apple_callback(
     code: Optional[str] = Form(None),
     id_token: Optional[str] = Form(None),
     user: Optional[str] = Form(None),
     state: Optional[str] = Form(None),
+    error: Optional[str] = Form(None),
 ):
-    target_origin = "https://accounts.ayeapps.com"
+    target_origin = "https://tasks.ayeapps.com"
     if state:
         try:
             from urllib.parse import unquote
@@ -62,6 +63,12 @@ async def apple_callback(
         except Exception:
             if state.startswith("http://") or state.startswith("https://"):
                 target_origin = state.rstrip("/")
+
+    if error:
+        return RedirectResponse(
+            url=f"{target_origin}/?error={error}",
+            status_code=303,
+        )
 
     if not id_token:
         return RedirectResponse(
@@ -80,15 +87,21 @@ async def apple_callback(
         except Exception:
             pass
 
-    auth_request = AppleAuthRequest(
-        identity_token=id_token,
-        name=user_name,
-        email=user_email,
-        app_client="tasks",
-    )
-    tokens = await AuthService.authenticate_apple(auth_request)
-    redirect_url = f"{target_origin}/#access_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
-    return RedirectResponse(url=redirect_url, status_code=303)
+    try:
+        auth_request = AppleAuthRequest(
+            identity_token=id_token,
+            name=user_name,
+            email=user_email,
+            app_client="tasks",
+        )
+        tokens = await AuthService.authenticate_apple(auth_request)
+        redirect_url = f"{target_origin}/#access_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
+        return RedirectResponse(url=redirect_url, status_code=303)
+    except Exception as e:
+        return RedirectResponse(
+            url=f"{target_origin}/?error=apple_auth_failed",
+            status_code=303,
+        )
 
 
 @router.post("/refresh", response_model=TokenResponse)
