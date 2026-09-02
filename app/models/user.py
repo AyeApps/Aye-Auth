@@ -36,7 +36,7 @@ class AuthProviders(BaseModel):
 class AppsAccess(BaseModel):
     tasks: bool = True
     video_downloader: bool = True
-    finance: bool = False
+    finance: bool = True
 
 
 class SubscriptionFeatures(BaseModel):
