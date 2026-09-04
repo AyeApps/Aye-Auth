@@ -99,6 +99,59 @@ async def verify_apple_id_token(token: str) -> dict:
         )
 
 
+async def verify_turnstile_token(token: Optional[str], ip_address: Optional[str] = None) -> None:
+    """
+    Valida obligatoriamente el token de Cloudflare Turnstile con el endpoint oficial de Cloudflare.
+    Protección integral contra bots y ataques automatizados a nivel API.
+    """
+    if not settings.TURNSTILE_SECRET_KEY:
+        logger.warning("[Turnstile] TURNSTILE_SECRET_KEY no configurada en entorno. Omitiendo validación.")
+        return
+
+    if not token or not token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Se requiere verificación de seguridad (Turnstile token requerido).",
+        )
+
+    try:
+        data = {
+            "secret": settings.TURNSTILE_SECRET_KEY,
+            "response": token.strip(),
+        }
+        if ip_address:
+            data["remoteip"] = ip_address
+
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data=data,
+            )
+            if resp.status_code != 200:
+                logger.error(f"[Turnstile] Error HTTP desde Cloudflare: {resp.status_code} - {resp.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Error comunicando con el servicio de verificación de Cloudflare",
+                )
+
+            result = resp.json()
+            if not result.get("success", False):
+                error_codes = result.get("error-codes", [])
+                logger.warning(f"[Turnstile] Verificación de bot fallida. Errores: {error_codes}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Verificación de seguridad fallida. Por favor recarga e intenta de nuevo.",
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Turnstile] Excepción validando token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al procesar la verificación de seguridad.",
+        )
+
+
 def _build_user_response(user_dict: dict) -> UserResponse:
     user_id = str(user_dict.get("_id", ""))
     return UserResponse(
@@ -155,7 +208,8 @@ def _derive_display_name_from_email(email: str, default: str = "Usuario Apple") 
 
 class AuthService:
     @staticmethod
-    async def register(data: UserRegister) -> TokenResponse:
+    async def register(data: UserRegister, client_ip: Optional[str] = None) -> TokenResponse:
+        await verify_turnstile_token(data.turnstile_token, ip_address=client_ip)
         db = get_database()
         email_clean = data.email.lower().strip()
         existing = await db.aye_users.find_one({
@@ -214,7 +268,8 @@ class AuthService:
         return token_resp
 
     @staticmethod
-    async def authenticate(data: UserLogin) -> TokenResponse:
+    async def authenticate(data: UserLogin, client_ip: Optional[str] = None) -> TokenResponse:
+        await verify_turnstile_token(data.turnstile_token, ip_address=client_ip)
         db = get_database()
         email_clean = data.email.lower().strip()
         user = await db.aye_users.find_one({

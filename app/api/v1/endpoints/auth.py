@@ -23,13 +23,15 @@ router = APIRouter()
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
 async def register(request: Request, data: UserRegister):
-    return await AuthService.register(data)
+    client_ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else None)
+    return await AuthService.register(data, client_ip=client_ip)
 
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("15/minute")
 async def login(request: Request, data: UserLogin):
-    return await AuthService.authenticate(data)
+    client_ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else None)
+    return await AuthService.authenticate(data, client_ip=client_ip)
 
 
 @router.post("/oauth/google", response_model=TokenResponse)

@@ -11,12 +11,14 @@ class UserRegister(BaseModel):
     preferred_theme: Optional[str] = "dark"
     timezone: Optional[str] = "America/Mexico_City"
     app_client: Optional[str] = "tasks"
+    turnstile_token: Optional[str] = None
 
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
     app_client: Optional[str] = "tasks"
+    turnstile_token: Optional[str] = None
 
 
 class GoogleAuthRequest(BaseModel):
