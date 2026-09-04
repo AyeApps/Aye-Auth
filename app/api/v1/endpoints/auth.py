@@ -55,13 +55,17 @@ async def apple_callback(
     error: Optional[str] = Form(None),
 ):
     target_origin = "https://tasks.ayeapps.com"
+    app_client_name = "tasks"
     if state:
         try:
             from urllib.parse import unquote
             state_decoded = unquote(state)
             state_data = json.loads(state_decoded)
-            if isinstance(state_data, dict) and state_data.get("origin"):
-                target_origin = state_data["origin"].rstrip("/")
+            if isinstance(state_data, dict):
+                if state_data.get("origin"):
+                    target_origin = state_data["origin"].rstrip("/")
+                if state_data.get("app"):
+                    app_client_name = state_data["app"]
         except Exception:
             if state.startswith("http://") or state.startswith("https://"):
                 target_origin = state.rstrip("/")
@@ -94,7 +98,7 @@ async def apple_callback(
             identity_token=id_token,
             name=user_name,
             email=user_email,
-            app_client="tasks",
+            app_client=app_client_name,
         )
         tokens = await AuthService.authenticate_apple(auth_request)
         redirect_url = f"{target_origin}/#access_token={tokens.access_token}&refresh_token={tokens.refresh_token}"
