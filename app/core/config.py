@@ -23,14 +23,17 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Union[List[str], str] = [
         "https://tasks.ayeapps.com",
         "https://video.ayeapps.com",
+        "https://finance.ayeapps.com",
         "https://ayeapps.com",
         "https://accounts.ayeapps.com",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8080",
         "http://localhost:8081",
+        "http://localhost:8083",
         "ayevideo://app",
         "ayetasks://app",
+        "ayefinance://app",
     ]
 
     # Billing & Subscriptions (Stripe / PayPal)
@@ -53,6 +56,8 @@ class Settings(BaseSettings):
         "com.ayeapps.ayetasks",
         "com.ayeapps.ayetasks.auth",
         "com.ayeapps.ayevideodownloader",
+        "com.ayeapps.ayefinance",
+        "com.ayeapps.ayefinance.auth",
         "com.ayeapps.auth",
     ]
     APPLE_BUNDLE_ID: str = "com.ayeapps.ayetasks"
